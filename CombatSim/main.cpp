@@ -346,6 +346,7 @@ int main(int argc, char *argv[])
         SDL_RenderClear(renderer);
         draw_grid(renderer);
         for (auto& p : platforms) {
+            p.updatePosition(0.000016f); // Rough sim time step simulator
             for (auto& m : p.getActiveMissiles()) {
                 if (m.isExploded()) {
                     continue;
@@ -353,7 +354,6 @@ int main(int argc, char *argv[])
                 SDL_RenderTextureRotated(renderer, p.getMissileTextures(), NULL, new SDL_FRect{m.getPosition()[0], m.getPosition()[1], 24.0f, 24.0f}, m.getAngleOfRotation(), NULL, SDL_FLIP_NONE);
             }
             if (!p.isDestroyed()) {
-                p.updatePosition(0.000016f); // Rough sim time step simulator
                 SDL_RenderTextureRotated(renderer, p.getPlatformTextures(), NULL, new SDL_FRect{p.getPosition()[0], p.getPosition()[1], 32.0f, 32.0f}, p.getAngleOfRotation(), NULL, SDL_FLIP_NONE);
             }
         }
