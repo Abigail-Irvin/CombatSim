@@ -3,7 +3,6 @@
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include "main.hpp"
-
 using json = nlohmann::json;
 
 void draw_grid(SDL_Renderer *renderer)
