@@ -316,7 +316,7 @@ int main(int argc, char *argv[])
     platforms[1].fireWeapon();
     platforms[1].setTarget(&platforms[0]);
 
-    platforms[0].setTarget(&platforms[1]);
+    platforms[0].setTarget(&platforms[2]);
     platforms[0].fireWeapon();
 
     platforms[2].setTarget(&platforms[0]);

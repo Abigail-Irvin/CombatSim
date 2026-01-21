@@ -30,7 +30,7 @@
     ],
     "red-fighter": [
         {
-            "platform": [50, 0.2, 100, 450, 0.5, -0.5]
+            "platform": [50, 0.2, 100, 550, 0.5, -0.5]
         },
         {
             "weapon": "example-missile"
@@ -47,7 +47,7 @@
     ],
     "red-fighter2": [
         {
-            "platform": [50, 0.2, 600, 450, -0.5, -0.5]
+            "platform": [50, 0.2, 600, 250, -0.6, -0.4]
         },
         {
             "weapon": "example-missile"
