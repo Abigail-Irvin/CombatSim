@@ -8,7 +8,7 @@ using json = nlohmann::json;
 
 void draw_grid(SDL_Renderer *renderer)
 {
-    // Draw grid lines
+    // Draws up the grid lines on the main simulation window
     SDL_SetRenderDrawColor(renderer, 0x00, 0x50, 0x00, 0x00);
     SDL_FRect row_line {.x=0, .y=0, .w=WINDOW_WIDTH, .h=0};
     SDL_FRect col_line {.x=0, .y=0, .w=0, .h=WINDOW_HEIGHT};
@@ -22,6 +22,7 @@ void draw_grid(SDL_Renderer *renderer)
 
 SDL_Surface *SurfLoadHelperPng(const char *file)
 {
+    // Helpers to load PNG images as SDL surfaces, returns NULL on failure
     SDL_Surface *loadedImage = SDL_LoadPNG(file);
     if (loadedImage == NULL) {
         SDL_Log("Unable to load image %s! SDL Error: %s\n", file, SDL_GetError());
@@ -32,6 +33,7 @@ SDL_Surface *SurfLoadHelperPng(const char *file)
 
 SDL_Texture *TextureLoadFromSurf(SDL_Renderer *renderer, SDL_Surface *surface)
 {
+    // Helper to create texture from surface, returns NULL on failure
     SDL_Texture *texture = SDL_CreateTextureFromSurface(renderer, surface);
     if (texture == NULL) {
         SDL_Log("Unable to create texture from surface! SDL Error: %s\n", SDL_GetError());
@@ -39,6 +41,193 @@ SDL_Texture *TextureLoadFromSurf(SDL_Renderer *renderer, SDL_Surface *surface)
     }
     return texture;
 }
+
+Platform::Platform(std::vector<float> position, std::vector<float> current_heading, std::string name, std::string side, float speed, float turn_rate)
+{
+    // Initialize platform attributes
+    is_destroyed = false;
+    current_sensor_refresh_time = 0.0f;
+    debug_sensor_refresh_time = 0.05f;
+    this->position = position;
+    this->current_heading = current_heading;
+    platform_name = name;
+    platform_side = side;
+    max_speed = speed;
+    max_turn_rate = turn_rate;
+    angle_of_rotation = 0.0f;
+    std::cout << "Created platform: " << platform_name << " of side: " << platform_side << std::endl;
+}
+
+void Platform::updatePosition(float time_step)
+{
+    // Main Update function for platform, updates position based on current heading and speed, also updates active missiles
+    if (!isDestroyed()) { 
+        angle_of_rotation = std::atan2(current_heading[1], current_heading[0]) * (180.0f / 3.14159f) + 90.0f;
+        position[0] += current_heading[0] * this->max_speed * time_step;
+        position[1] += current_heading[1] * this->max_speed * time_step;
+    }   
+    for (auto& m : active_missiles) {
+        m.updatePosition(time_step);
+    }
+    current_sensor_refresh_time += time_step;
+    if (current_sensor_refresh_time >= debug_sensor_refresh_time) {
+        int missile_index = 0;
+        int to_delete = 0;
+        bool delete_missile = false;
+        for (auto& m : active_missiles) {
+            if (m.isExploded()) {
+                delete_missile = true;
+                to_delete = missile_index;
+                continue;
+            }
+            if (!isDestroyed()){ // if platform is destroyed, missiles no longer get course updates
+                m.adjustCourse(target_platform->getPosition());
+            }
+            
+            missile_index++;
+        }
+        std::vector<Missile>::iterator it = active_missiles.begin();
+        std::advance(it, to_delete);
+        if (hasMissile(to_delete) && delete_missile)
+        {
+            active_missiles.erase(it);
+            delete_missile = false;
+            target_platform->destroyPlatform();
+        }
+        current_sensor_refresh_time = 0.0f;
+    }
+}
+
+void Platform::fireWeapon()
+{
+    // Fires the primary weapon, creating a new missile and adding it to active missiles
+    std::cout << platform_name << " firing weapon: " << primary_weapon.name << std::endl;
+    Missile m(primary_weapon, position, current_heading);
+    active_missiles.push_back(m);
+}
+
+void Platform::setWeapon(Weapon w)
+{
+    // set the primary weapon for this platform
+    primary_weapon = w;
+}
+
+void Platform::setTarget(Platform *target)
+{
+    // set the target platform for this platform, used for missile guidance
+    target_platform = target;
+}
+
+Missile Platform::getMissile(int index)
+{
+    // retrieve an active missile by index, exits with error if index is out of range
+    if (!hasMissile(index)) {
+        std::cerr << "Error: Missile index out of range." << std::endl;
+        exit(1);
+    }
+    return active_missiles[index];
+}
+
+bool Platform::isDestroyed()
+{
+    // check if platform is destroyed
+    return is_destroyed;
+}
+
+bool Platform::hasMissile(int index)
+{
+    // check if platform has an active missile at the given index
+    if (index < 0 || index >= active_missiles.size()) {
+        return false;
+    }
+    return true;
+}
+
+void Platform::setSensor(Sensor s)
+{
+    // set the primary sensor for this platform
+    primary_sensor = s;
+}
+
+void Platform::destroyPlatform()
+{ 
+    // mark platform as destroyed
+    std::cout << "Platform " << platform_name << " destroyed!" << std::endl;
+    is_destroyed = true;
+}
+
+float Platform::getAngleOfRotation()
+{
+    // retrieve current angle of rotation for rendering
+    return angle_of_rotation;
+}
+
+std::vector<float> Platform::getPosition()
+{
+    // retrieve current position of platform
+    return position;
+}
+
+
+Missile::Missile(Weapon w, std::vector<float> pos, std::vector<float> heading)
+{
+    // Initialize missile attributes
+    missile_weapon = w;
+    position = pos;
+    current_heading = heading;
+    exploded = false;
+    final_approach = false;
+    angle_of_rotation = std::atan2(current_heading[1], current_heading[0]) * (180.0f / 3.14159f) + 90.0f;
+}
+
+bool Missile::isExploded()
+{
+    // check if missile has exploded
+    return exploded;
+}
+
+std::vector<float> Missile::getPosition()
+{
+    // retrieve current position of missile
+    return position;
+}
+
+float Missile::getAngleOfRotation()
+{
+    // retrieve current angle of rotation for rendering
+    return angle_of_rotation;
+}
+
+void Missile::updatePosition(float time_step)
+{
+    // Positional update based on current heading and speed, also handles final impact calculation
+    angle_of_rotation = std::atan2(current_heading[1], current_heading[0]) * (180.0f / 3.14159f) + 90.0f;
+    position[0] += current_heading[0] * missile_weapon.speed * time_step;
+    position[1] += current_heading[1] * missile_weapon.speed * time_step;
+    if (final_target_position.size() == 2) {
+        float distance_to_target = magnitude2D({final_target_position[0] - position[0], final_target_position[1] - position[1]});
+        if (distance_to_target < 14.0f && !exploded) {
+            exploded = true;
+            std::cout << "Missile exploded at target position (" << final_target_position[0] << ", " << final_target_position[1] << ")\n";
+        }
+    }
+}
+
+void Missile::adjustCourse(std::vector<float> target_pos)
+{
+    // Simulates getting course correction from platform's sensor and adjusting heading towards target
+    std::vector<float> to_target = {target_pos[0] - position[0], target_pos[1] - position[1]};
+    to_target = normalize2D(to_target);
+    std::vector<float> old_heading = current_heading;
+    current_heading = heading_lerp(current_heading, to_target, missile_weapon.turning_radius);
+    if (abs(current_heading[0] - old_heading[0]) < 0.04f && abs(current_heading[1] - old_heading[1]) < 0.04f) {
+        final_approach = true;   
+    }
+    if (final_approach) {
+        final_target_position = target_pos;
+    }
+}
+
 
 int main(int argc, char *argv[])
 {
