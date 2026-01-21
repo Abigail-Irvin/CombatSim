@@ -82,9 +82,10 @@ void Platform::updatePosition(float time_step)
                 continue;
             }
             if (!isDestroyed()){ // if platform is destroyed, missiles no longer get course updates
-                m.adjustCourse(target_platform->getPosition());
+                if (!target_platform->isDestroyed()) {
+                    m.adjustCourse(target_platform->getPosition());
+                }
             }
-            
             missile_index++;
         }
         std::vector<Missile>::iterator it = active_missiles.begin();
@@ -158,6 +159,9 @@ void Platform::setSensor(Sensor s)
 void Platform::destroyPlatform()
 { 
     // mark platform as destroyed
+    if (is_destroyed) {
+        return;
+    }
     std::cout << "Platform " << platform_name << " destroyed!" << std::endl;
     is_destroyed = true;
 }
@@ -315,6 +319,9 @@ int main(int argc, char *argv[])
     platforms[0].setTarget(&platforms[1]);
     platforms[0].fireWeapon();
 
+    platforms[2].setTarget(&platforms[0]);
+    platforms[2].fireWeapon();
+
     // SDL3 Initialization and window creation
     SDL_Window *window;
     SDL_Renderer *renderer;
@@ -332,7 +339,7 @@ int main(int argc, char *argv[])
 
     //SDL loading textures from surfaces for platforms and missiles
     for (auto& p : platforms) {
-            p.setTextures(renderer);
+        p.setTextures(renderer);
     }
 
     // Main loop

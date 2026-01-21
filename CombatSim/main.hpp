@@ -56,7 +56,7 @@ class Missile
     bool final_approach; // flag for whether missile is in final approach phase
     bool exploded; // flag for whether missile has exploded
     float angle_of_rotation; // current angle of rotation for rendering
-
+    
     public:
     Missile(Weapon w, std::vector<float> pos, std::vector<float> heading);
     bool isExploded();
