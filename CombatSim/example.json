@@ -23,6 +23,9 @@
         },
         {
             "side": "blue"
+        },
+        {
+            "icon": ["blue.png", "blue-missile.png"]
         }
     ],
     "red-fighter": [
@@ -37,6 +40,9 @@
         },
         {
             "side": "red"
+        },
+        {
+            "icon": ["red.png", "red-missile.png"]
         }
     ]
 }

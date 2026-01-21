@@ -4,6 +4,8 @@
 #include <memory>
 #include <iostream>
 #include <cmath>
+#include <SDL3/SDL.h>
+#include <SDL3/SDL_main.h>
 
 float magnitude2D(std::vector<float> vec)
 {
@@ -82,9 +84,15 @@ class Platform
     std::vector<Missile> active_missiles;
     Platform *target_platform; // currently assigned target platform
     float angle_of_rotation; // current angle of rotation for rendering
+    std::string platform_icon_path; // file path for platform icon
+    std::string platform_missile_icon_path; // file path for platform missile icon
+    SDL_Surface* platform_surface; // SDL surface for platform
+    SDL_Surface* platform_missile_surface; // SDL surface for platform missile
+    SDL_Texture* platform_texture; // SDL texture for platform
+    SDL_Texture* platform_missile_texture; // SDL texture for platform missile
 
     public:
-    Platform(std::vector<float> position, std::vector<float> current_heading, std::string name, std::string side, float speed, float turn_rate);
+    Platform(std::vector<float> position, std::vector<float> current_heading, std::string name, std::string side, std::string platform_icon_path, std::string platform_missile_icon_path, float speed, float turn_rate);
     void updatePosition(float time_step);
     void fireWeapon();
     void setWeapon(Weapon w);
@@ -92,10 +100,14 @@ class Platform
     Missile getMissile(int index);
     bool isDestroyed();
     bool hasMissile(int index);
+    std::vector<Missile> getActiveMissiles();
     void setSensor(Sensor s);
     void destroyPlatform();
     float getAngleOfRotation();
     std::vector<float> getPosition();
+    void setTextures(SDL_Renderer* renderer);
+    SDL_Texture *getPlatformTextures();
+    SDL_Texture *getMissileTextures();
 };
 std::vector<float> normalize2D(std::vector<float> vec);
 std::vector<float> heading_lerp(std::vector<float> start, std::vector<float> end, float t);

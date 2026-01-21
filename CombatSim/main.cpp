@@ -1,5 +1,3 @@
-#include <SDL3/SDL.h>
-#include <SDL3/SDL_main.h>
 #include <fstream>
 #include <nlohmann/json.hpp>
 #include "main.hpp"
@@ -41,7 +39,7 @@ SDL_Texture *TextureLoadFromSurf(SDL_Renderer *renderer, SDL_Surface *surface)
     return texture;
 }
 
-Platform::Platform(std::vector<float> position, std::vector<float> current_heading, std::string name, std::string side, float speed, float turn_rate)
+Platform::Platform(std::vector<float> position, std::vector<float> current_heading, std::string name, std::string side, std::string platform_icon_path, std::string platform_missile_icon_path, float speed, float turn_rate)
 {
     // Initialize platform attributes
     is_destroyed = false;
@@ -54,6 +52,10 @@ Platform::Platform(std::vector<float> position, std::vector<float> current_headi
     max_speed = speed;
     max_turn_rate = turn_rate;
     angle_of_rotation = 0.0f;
+    this->platform_icon_path = platform_icon_path;
+    this->platform_missile_icon_path = platform_missile_icon_path;
+    platform_surface = SurfLoadHelperPng(platform_icon_path.c_str());
+    platform_missile_surface = SurfLoadHelperPng(platform_missile_icon_path.c_str());
     std::cout << "Created platform: " << platform_name << " of side: " << platform_side << std::endl;
 }
 
@@ -142,6 +144,11 @@ bool Platform::hasMissile(int index)
     return true;
 }
 
+std::vector<Missile> Platform::getActiveMissiles()
+{
+    return active_missiles;
+}
+
 void Platform::setSensor(Sensor s)
 {
     // set the primary sensor for this platform
@@ -167,6 +174,21 @@ std::vector<float> Platform::getPosition()
     return position;
 }
 
+void Platform::setTextures(SDL_Renderer *renderer)
+{
+    platform_texture = TextureLoadFromSurf(renderer, platform_surface);
+    platform_missile_texture = TextureLoadFromSurf(renderer, platform_missile_surface);
+}
+
+SDL_Texture *Platform::getPlatformTextures()
+{
+    return platform_texture;
+}
+
+SDL_Texture *Platform::getMissileTextures()
+{
+    return platform_missile_texture;
+}
 
 Missile::Missile(Weapon w, std::vector<float> pos, std::vector<float> heading)
 {
@@ -257,6 +279,8 @@ int main(int argc, char *argv[])
             float platform_turn_rate = 0.0f;
             std::vector<float> default_position = {0.0f, 0.0f};
             std::vector<float> default_heading = {1.0f, 0.0};
+            std::string platform_icon_path;
+            std::string platform_missile_icon_path;
             for (auto& element : *it) {
                 for (auto& item : element.items()) {
                     if (item.key() == "side") {
@@ -268,10 +292,13 @@ int main(int argc, char *argv[])
                         default_position[1] = item.value()[3];
                         default_heading[0] = item.value()[4];
                         default_heading[1] = item.value()[5];
+                    } else if (item.key() == "icon") {
+                        platform_icon_path = item.value()[0];
+                        platform_missile_icon_path = item.value()[1];
                     }
                 }
             }
-            Platform p(default_position, default_heading, std::string(it.key()), platform_side, platform_speed, platform_turn_rate);
+            Platform p(default_position, default_heading, std::string(it.key()), platform_side, platform_icon_path, platform_missile_icon_path, platform_speed, platform_turn_rate);
             platforms.push_back(p);
         }
         
@@ -291,14 +318,6 @@ int main(int argc, char *argv[])
     // SDL3 Initialization and window creation
     SDL_Window *window;
     SDL_Renderer *renderer;
-    SDL_Surface *blue_surface;
-    SDL_Surface *red_surface;
-    SDL_Surface *blue_missile_surface;
-    SDL_Surface *red_missile_surface;
-    SDL_Texture *blue_texture;
-    SDL_Texture *red_texture;
-    SDL_Texture *red_missile_texture;
-    SDL_Texture *blue_missile_texture;
     SDL_Event event;
 
     if (!SDL_Init(SDL_INIT_VIDEO)) {
@@ -311,15 +330,10 @@ int main(int argc, char *argv[])
         return 3;
     }
 
-    //SDL loading surfaces
-    blue_surface = SurfLoadHelperPng("blue.png");
-    red_surface = SurfLoadHelperPng("red.png");
-    red_missile_surface = SurfLoadHelperPng("red-missile.png");
-    blue_missile_surface = SurfLoadHelperPng("blue-missile.png");
-    blue_texture = TextureLoadFromSurf(renderer, blue_surface);
-    red_texture = TextureLoadFromSurf(renderer, red_surface);
-    red_missile_texture = TextureLoadFromSurf(renderer, red_missile_surface);
-    blue_missile_texture = TextureLoadFromSurf(renderer, blue_missile_surface);
+    //SDL loading textures from surfaces for platforms and missiles
+    for (auto& p : platforms) {
+            p.setTextures(renderer);
+    }
 
     // Main loop
     while (1) {
@@ -327,45 +341,25 @@ int main(int argc, char *argv[])
         if (event.type == SDL_EVENT_QUIT) {
             break;
         }
-        // Update simulation state here
-        for (auto& p : platforms) {
-            p.updatePosition(0.000016f); // assuming ~60 FPS, so ~16ms per frame
-        }
         // Render simulation state here
         SDL_SetRenderDrawColor(renderer, 0x00, 0x10, 0x00, 0x00);
         SDL_RenderClear(renderer);
         draw_grid(renderer);
-        if (platforms[1].hasMissile(0)) {
-            // If red platform has an active missile, render it
-            SDL_RenderTextureRotated(renderer, red_missile_texture, NULL, new SDL_FRect{platforms[1].getMissile(0).getPosition()[0], platforms[1].getMissile(0).getPosition()[1], 24.0f, 24.0f}, platforms[1].getMissile(0).getAngleOfRotation(), NULL, SDL_FLIP_NONE);
+        for (auto& p : platforms) {
+            for (auto& m : p.getActiveMissiles()) {
+                if (m.isExploded()) {
+                    continue;
+                }
+                SDL_RenderTextureRotated(renderer, p.getMissileTextures(), NULL, new SDL_FRect{m.getPosition()[0], m.getPosition()[1], 24.0f, 24.0f}, m.getAngleOfRotation(), NULL, SDL_FLIP_NONE);
+            }
+            if (!p.isDestroyed()) {
+                p.updatePosition(0.000016f); // assuming ~60 FPS, so ~16ms per frame
+                SDL_RenderTextureRotated(renderer, p.getPlatformTextures(), NULL, new SDL_FRect{p.getPosition()[0], p.getPosition()[1], 32.0f, 32.0f}, p.getAngleOfRotation(), NULL, SDL_FLIP_NONE);
+            }
         }
-
-        if (platforms[0].hasMissile(0)) {
-            // If blue platform has an active missile, render it
-            SDL_RenderTextureRotated(renderer, blue_missile_texture, NULL, new SDL_FRect{platforms[0].getMissile(0).getPosition()[0], platforms[0].getMissile(0).getPosition()[1], 24.0f, 24.0f}, platforms[0].getMissile(0).getAngleOfRotation(), NULL, SDL_FLIP_NONE);
-        }
-
-        if (!platforms[0].isDestroyed()) {
-            // If blue platform is not destroyed, render it
-            SDL_RenderTextureRotated(renderer, blue_texture, NULL, new SDL_FRect{platforms[0].getPosition()[0], platforms[0].getPosition()[1], 32.0f, 32.0f}, platforms[0].getAngleOfRotation(), NULL, SDL_FLIP_NONE);
-        }
-        if (!platforms[1].isDestroyed()) {
-            // If red platform is not destroyed, render it
-            SDL_RenderTextureRotated(renderer, red_texture, NULL, new SDL_FRect{platforms[1].getPosition()[0], platforms[1].getPosition()[1], 32.0f, 32.0f}, platforms[1].getAngleOfRotation(), NULL, SDL_FLIP_NONE);
-        }
-        
         SDL_RenderPresent(renderer);
     }
     // Cleanup and shutdown
-    SDL_DestroySurface(blue_surface);
-    SDL_DestroySurface(red_surface);
-    SDL_DestroySurface(red_missile_surface); 
-    SDL_DestroySurface(blue_missile_surface); 
-
-    SDL_DestroyTexture(blue_texture);
-    SDL_DestroyTexture(red_texture);
-    SDL_DestroyTexture(red_missile_texture);
-    SDL_DestroyTexture(blue_missile_texture);
     SDL_DestroyRenderer(renderer);
     SDL_DestroyWindow(window);
 
